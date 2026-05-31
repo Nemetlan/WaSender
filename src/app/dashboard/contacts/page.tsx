@@ -121,31 +121,75 @@ export default function ContactsPage() {
     setImportError(null);
 
     try {
-      let parsedContacts: any[] = [];
+      let rawData: any[] = [];
 
       if (importFormat === 'json') {
-        parsedContacts = JSON.parse(importData);
-        if (!Array.isArray(parsedContacts)) throw new Error('JSON must be an array of objects');
+        rawData = JSON.parse(importData);
+        if (!Array.isArray(rawData)) throw new Error('JSON must be an array of objects');
       } else {
-        // Simple CSV Parser
+        // CSV Parser with Tag Support
         const lines = importData.split('\n').filter(line => line.trim());
-        parsedContacts = lines.map((line, index) => {
+        rawData = lines.map((line, index) => {
           if (index === 0 && line.toLowerCase().includes('phone_number')) return null;
-          const [phone, name, comment] = line.split(',').map(s => s.trim());
+          const [phone, name, comment, tagString] = line.split(',').map(s => s.trim());
           if (!phone) return null;
           return {
             phone_number: phone,
             display_name: name || phone,
-            comment: comment || ''
+            comment: comment || '',
+            tags: tagString ? tagString.split(';').map(t => t.trim()).filter(t => t) : []
           };
         }).filter(c => c !== null);
       }
 
-      if (parsedContacts.length === 0) throw new Error('No valid contacts found to import');
+      if (rawData.length === 0) throw new Error('No valid contacts found to import');
 
-      const { error } = await supabase.from('contacts').upsert(parsedContacts, { onConflict: 'phone_number' });
+      // 1. Prepare and Upsert Contacts
+      const contactsToUpsert = rawData.map(({ tags, ...c }) => c);
+      const { data: upsertedContacts, error: contactError } = await supabase
+        .from('contacts')
+        .upsert(contactsToUpsert, { onConflict: 'phone_number' })
+        .select('id, phone_number');
       
-      if (error) throw error;
+      if (contactError) throw contactError;
+
+      // 2. Extract and Upsert All Unique Tag Names
+      const allTagNames = Array.from(new Set(rawData.flatMap(r => r.tags || [])));
+      
+      if (allTagNames.length > 0) {
+        // Ensure all tags exist (upsert by name)
+        const tagsToUpsert = allTagNames.map(name => ({ name }));
+        const { data: existingTags, error: tagError } = await supabase
+          .from('tags')
+          .upsert(tagsToUpsert, { onConflict: 'name' })
+          .select('id, name');
+        
+        if (tagError) throw tagError;
+
+        // 3. Create Tag Mappings
+        const tagMap = new Map(existingTags.map(t => [t.name, t.id]));
+        const contactMap = new Map(upsertedContacts.map(c => [c.phone_number, c.id]));
+
+        const mappings: any[] = [];
+        rawData.forEach(item => {
+          const contactId = contactMap.get(item.phone_number);
+          if (contactId && item.tags) {
+            item.tags.forEach((tagName: string) => {
+              const tagId = tagMap.get(tagName);
+              if (tagId) {
+                mappings.push({ contact_id: contactId, tag_id: tagId });
+              }
+            });
+          }
+        });
+
+        if (mappings.length > 0) {
+          const { error: mappingError } = await supabase
+            .from('contact_tags')
+            .upsert(mappings, { onConflict: 'contact_id,tag_id' });
+          if (mappingError) throw mappingError;
+        }
+      }
 
       setIsImportModalOpen(false);
       setImportData('');
@@ -450,7 +494,7 @@ export default function ContactsPage() {
                 <textarea 
                   required
                   className="w-full h-64 p-5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-mono focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all leading-relaxed"
-                  placeholder={importFormat === 'csv' ? "phone_number, display_name, comment\n94771234567, John Doe, VIP\n94777654321, Jane Smith, Lead" : '[{"phone_number": "94771234567", "display_name": "John Doe", "comment": "VIP"}]'}
+                  placeholder={importFormat === 'csv' ? "phone_number, display_name, comment, tags\n94771234567, John Doe, VIP, Premium;Lead\n94777654321, Jane Smith, Lead, Customer" : '[{"phone_number": "94771234567", "display_name": "John Doe", "comment": "VIP", "tags": ["Premium", "Lead"]}]'}
                   value={importData}
                   onChange={(e) => setImportData(e.target.value)}
                 />
@@ -458,7 +502,7 @@ export default function ContactsPage() {
                 <div className="flex items-start space-x-3 p-4 bg-amber-50 rounded-2xl border border-amber-100">
                    <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5" />
                    <p className="text-[10px] text-amber-700 leading-normal font-bold uppercase tracking-tight">
-                     Note: Phone numbers must be unique. Duplicate entries will update existing records. Format must follow the placeholders shown above.
+                     Note: Phone numbers must be unique. Tags should be semicolon-separated (;) in CSV. Duplicate phone numbers will update existing records.
                    </p>
                 </div>
               </div>
