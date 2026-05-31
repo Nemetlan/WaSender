@@ -89,35 +89,6 @@ export default function DashboardLayout({
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Top Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 sticky top-0 z-30">
-          <div className="flex items-center md:hidden">
-            <button 
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-            <span className="ml-3 font-bold text-lg text-slate-900">WaSender</span>
-          </div>
-
-          <div className="hidden md:block">
-            <h2 className="text-sm font-medium text-slate-500">
-              Welcome back
-            </h2>
-          </div>
-
-          <div className="flex items-center space-x-4">
-            <div className="flex flex-col items-end">
-              <span className="text-sm font-semibold text-slate-900 leading-none">Admin User</span>
-              <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1 bg-blue-50 px-1.5 py-0.5 rounded">Pro Plan</span>
-            </div>
-            <div className="w-10 h-10 bg-slate-100 rounded-full border-2 border-white shadow-sm flex items-center justify-center">
-              <Users className="w-5 h-5 text-slate-500" />
-            </div>
-          </div>
-        </header>
-
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="max-w-7xl mx-auto">

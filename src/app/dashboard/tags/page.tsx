@@ -8,7 +8,9 @@ import {
   Trash2, 
   Loader2,
   X,
-  Palette
+  Palette,
+  Edit2,
+  Check
 } from 'lucide-react';
 
 export default function TagsPage() {
@@ -16,9 +18,10 @@ export default function TagsPage() {
   const [tags, setTags] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTag, setEditingTag] = useState<any>(null);
 
   // Form State
-  const [newTag, setNewTag] = useState({
+  const [tagForm, setTagForm] = useState({
     name: '',
     color_code: '#3B82F6',
   });
@@ -34,15 +37,30 @@ export default function TagsPage() {
     fetchTags();
   }, []);
 
-  const handleAddTag = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase.from('tags').insert([newTag]);
-    if (!error) {
+    setLoading(true);
+
+    try {
+      if (editingTag) {
+        const { error } = await supabase
+          .from('tags')
+          .update(tagForm)
+          .eq('id', editingTag.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('tags').insert([tagForm]);
+        if (error) throw error;
+      }
+
       setIsModalOpen(false);
-      setNewTag({ name: '', color_code: '#3B82F6' });
+      setEditingTag(null);
+      setTagForm({ name: '', color_code: '#3B82F6' });
       fetchTags();
-    } else {
+    } catch (error: any) {
       alert(error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -56,6 +74,18 @@ export default function TagsPage() {
     }
   };
 
+  const openAddModal = () => {
+    setEditingTag(null);
+    setTagForm({ name: '', color_code: '#3B82F6' });
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (tag: any) => {
+    setEditingTag(tag);
+    setTagForm({ name: tag.name, color_code: tag.color_code });
+    setIsModalOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -67,7 +97,7 @@ export default function TagsPage() {
           <p className="text-slate-500 text-sm mt-1">Create and manage global tags to segment your contacts.</p>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={openAddModal}
           className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center shadow-lg shadow-blue-100 transition-all active:scale-95"
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -77,11 +107,11 @@ export default function TagsPage() {
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-          <h3 className="text-sm font-bold text-slate-900">Active Global Tags</h3>
+          <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest text-[10px]">Active Global Pool</h3>
         </div>
 
         <div className="p-6">
-          {loading ? (
+          {loading && tags.length === 0 ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
             </div>
@@ -100,12 +130,20 @@ export default function TagsPage() {
                     />
                     <span className="font-bold text-slate-900 text-sm">{tag.name}</span>
                   </div>
-                  <button 
-                    onClick={() => handleDeleteTag(tag.id)}
-                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-all">
+                    <button 
+                      onClick={() => openEditModal(tag)}
+                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteTag(tag.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -117,18 +155,18 @@ export default function TagsPage() {
         </div>
       </div>
 
-      {/* Create Tag Modal */}
+      {/* Tag Modal (Add/Edit) */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
           <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <h2 className="text-xl font-bold text-slate-900">New Global Tag</h2>
+              <h2 className="text-xl font-bold text-slate-900">{editingTag ? 'Edit Tag' : 'New Global Tag'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:bg-white rounded-xl border border-transparent hover:border-slate-200 transition-all">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleAddTag} className="p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Tag Name</label>
                 <div className="relative">
@@ -138,8 +176,8 @@ export default function TagsPage() {
                     required
                     className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold"
                     placeholder="e.g. VIP Customers"
-                    value={newTag.name}
-                    onChange={(e) => setNewTag({...newTag, name: e.target.value})}
+                    value={tagForm.name}
+                    onChange={(e) => setTagForm({...tagForm, name: e.target.value})}
                   />
                 </div>
               </div>
@@ -152,11 +190,11 @@ export default function TagsPage() {
                   <input 
                     type="color" 
                     className="w-12 h-12 rounded-lg cursor-pointer border-0 bg-transparent p-0"
-                    value={newTag.color_code}
-                    onChange={(e) => setNewTag({...newTag, color_code: e.target.value})}
+                    value={tagForm.color_code}
+                    onChange={(e) => setTagForm({...tagForm, color_code: e.target.value})}
                   />
                   <div className="flex-1">
-                    <div className="text-xs font-bold text-slate-600 uppercase tracking-tight">{newTag.color_code}</div>
+                    <div className="text-xs font-bold text-slate-600 uppercase tracking-tight">{tagForm.color_code}</div>
                     <p className="text-[10px] text-slate-400 mt-1 font-medium italic">Click color block to customize</p>
                   </div>
                 </div>
@@ -164,9 +202,10 @@ export default function TagsPage() {
 
               <button 
                 type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-blue-100 flex items-center justify-center active:scale-95"
+                disabled={loading}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-blue-100 flex items-center justify-center active:scale-95 disabled:opacity-50"
               >
-                Save Global Tag
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : editingTag ? 'Update Tag' : 'Save Global Tag'}
               </button>
             </form>
           </div>

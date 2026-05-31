@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   // Ensure worker is running in this process
   initWorker();
 
-  const { template, tags, countryCode, status, manualNumbers } = await req.json();
+  const { template, tags, comment, status, manualNumbers } = await req.json();
 
   if (!template) {
     return NextResponse.json({ error: 'Template is required' }, { status: 400 });
@@ -44,12 +44,12 @@ export async function POST(req: NextRequest) {
     let query = supabase
       .from('contacts')
       .select(`
-        id, phone_number, display_name, country_code, status,
+        id, phone_number, display_name, comment, status,
         contact_tags!inner(tag_id)
       `);
 
     if (status) query = query.eq('status', status);
-    if (countryCode) query = query.eq('country_code', countryCode);
+    if (comment) query = query.ilike('comment', `%${comment}%`);
     
     if (tags && Array.isArray(tags) && tags.length > 0) {
       query = query.in('contact_tags.tag_id', tags);

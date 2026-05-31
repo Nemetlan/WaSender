@@ -43,7 +43,7 @@ CREATE TABLE public.contacts (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     phone_number TEXT NOT NULL UNIQUE,
     display_name TEXT NOT NULL,
-    country_code TEXT NOT NULL,
+    comment TEXT,
     status TEXT DEFAULT 'active' CHECK (status IN ('active', 'opted_out')) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
