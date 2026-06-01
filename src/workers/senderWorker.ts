@@ -18,7 +18,6 @@ export function initWorker() {
   const worker = new Worker('bulk-sender', async (job: Job) => {
     const { userId, contacts, template } = job.data;
     
-    // @ts-ignore
     const userSocket = global.activeSockets?.get(userId);
     
     if (!userSocket) {

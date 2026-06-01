@@ -18,6 +18,7 @@ export function WhatsAppConnector() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   const connect = () => {
@@ -52,6 +53,9 @@ export function WhatsAppConnector() {
     });
 
     es.onerror = () => {
+      // If we're already connected, don't show an error, just try to reconnect silently if needed
+      if (status === 'connected') return;
+      
       if (status === 'connecting' || status === 'reconnecting') {
         es.close();
         setTimeout(connect, 3000);
@@ -63,7 +67,32 @@ export function WhatsAppConnector() {
     };
   };
 
+  const logout = async () => {
+    if (!confirm('Are you sure you want to disconnect? This will stop all active sending jobs.')) return;
+    
+    setIsLoggingOut(true);
+    try {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+
+      const res = await fetch('/api/whatsapp/logout', { method: 'POST' });
+      if (!res.ok) throw new Error('Logout failed');
+      
+      setStatus('disconnected');
+      setQrCode(null);
+    } catch (err: any) {
+      console.error('Logout error:', err);
+      alert('Failed to logout. Please try again.');
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
   useEffect(() => {
+    // Initial check: if we're on this page, try to see if a session exists
+    connect();
+
     return () => {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
@@ -170,13 +199,23 @@ export function WhatsAppConnector() {
               </div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">+12 Connected</span>
             </div>
-            <button
-              onClick={connect}
-              className="text-slate-400 hover:text-slate-600 text-[11px] font-semibold flex items-center justify-center mx-auto transition-colors pt-4"
-            >
-              <RefreshCw className="w-3 h-3 mr-1.5" />
-              Force Reconnect
-            </button>
+            <div className="flex items-center justify-center space-x-4 pt-4">
+              <button
+                onClick={connect}
+                className="text-slate-400 hover:text-slate-600 text-[11px] font-semibold flex items-center transition-colors"
+              >
+                <RefreshCw className="w-3 h-3 mr-1.5" />
+                Force Reconnect
+              </button>
+              <button
+                onClick={logout}
+                disabled={isLoggingOut}
+                className="text-rose-500 hover:text-rose-600 text-[11px] font-semibold flex items-center transition-colors disabled:opacity-50"
+              >
+                {isLoggingOut ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> : <RefreshCw className="w-3 h-3 mr-1.5 rotate-45" />}
+                Logout & Disconnect
+              </button>
+            </div>
           </div>
         )}
 

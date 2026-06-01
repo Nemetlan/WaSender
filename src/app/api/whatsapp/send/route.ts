@@ -22,7 +22,6 @@ export async function POST(req: NextRequest) {
   }
 
   // Check if user has an active socket
-  // @ts-ignore
   const userSocket = global.activeSockets?.get(user.id);
   if (!userSocket) {
     return NextResponse.json({ 

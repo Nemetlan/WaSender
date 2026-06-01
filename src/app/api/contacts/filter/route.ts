@@ -5,17 +5,17 @@ import { cookies } from 'next/headers';
 
 export async function POST(req: NextRequest) {
   const supabase = createRouteHandlerClient({ cookies });
-  const { tags, countryCode, status } = await req.json(); // tags is array of UUIDs
+  const { tags, comment, status } = await req.json(); // tags is array of UUIDs
 
   let query = supabase
     .from('contacts')
     .select(`
-      id, phone_number, display_name, country_code, status,
+      id, phone_number, display_name, comment, status,
       contact_tags!inner(tag_id)
     `);
 
   if (status) query = query.eq('status', status);
-  if (countryCode) query = query.eq('country_code', countryCode);
+  if (comment) query = query.ilike('comment', `%${comment}%`);
   
   // Handle complex strict AND tag intersection logic
   if (tags && tags.length > 0) {

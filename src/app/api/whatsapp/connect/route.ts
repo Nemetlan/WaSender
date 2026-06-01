@@ -15,16 +15,13 @@ export async function GET(req: NextRequest) {
   if (!user) return new Response('Unauthorized', { status: 401 });
 
   // Close existing socket if any to prevent "Connection Failure" conflicts
-  // @ts-ignore
-  const existingSock = global.activeSockets.get(user.id);
+  const existingSock = global.activeSockets?.get(user.id);
   if (existingSock) {
     console.log(`Cleaning up existing socket for user ${user.id}`);
-    // Remove all listeners so they don't try to write to the old stream
     existingSock.ev.removeAllListeners('connection.update');
     existingSock.ev.removeAllListeners('creds.update');
     existingSock.end(undefined);
-    // @ts-ignore
-    global.activeSockets.delete(user.id);
+    global.activeSockets?.delete(user.id);
   }
 
   const responseStream = new TransformStream();
@@ -58,11 +55,12 @@ export async function GET(req: NextRequest) {
     auth: state,
     version,
     printQRInTerminal: false,
-    browser: ['Ubuntu', 'Chrome', '20.0.04'],
+    browser: ['WaSender', 'Chrome', '121.0.6167.184'],
     connectTimeoutMs: 60000,
     keepAliveIntervalMs: 30000,
     syncFullHistory: false,
-    markOnlineOnConnect: false,
+    markOnlineOnConnect: true, // Helps with initial key exchange
+    generateHighQualityLinkPreview: true,
   });
 
   // @ts-ignore

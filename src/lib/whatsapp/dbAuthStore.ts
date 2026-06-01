@@ -27,13 +27,14 @@ export async function useSupabaseAuthStore(supabase: SupabaseClient, userId: str
       creds = parsed.creds;
       keys = parsed.keys || {};
     } catch (e) {
-      console.error('Error parsing WA session data:', e);
+      console.error('Error parsing WA session data, initializing new creds:', e);
       creds = initAuthCreds();
     }
   } else {
     creds = initAuthCreds();
   }
 
+  // Helper to save everything to DB
   const saveCreds = async () => {
     try {
       const sessionString = JSON.stringify({ creds, keys }, BufferJSON.replacer);
@@ -41,12 +42,11 @@ export async function useSupabaseAuthStore(supabase: SupabaseClient, userId: str
         .from('wa_sessions')
         .upsert({ 
           user_id: userId, 
-          session_data: JSON.parse(sessionString), // Store as JSONB
+          session_data: JSON.parse(sessionString), 
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_id' });
       
       if (error) throw error;
-      console.log(`Saved WA credentials for user ${userId}`);
     } catch (e) {
       console.error('Failed to save WA credentials:', e);
     }
@@ -59,21 +59,31 @@ export async function useSupabaseAuthStore(supabase: SupabaseClient, userId: str
         get: (type, ids) => {
           const data: any = {};
           for (const id of ids) {
-            data[id] = keys[`${type}-${id}`];
+            const key = `${type}-${id}`;
+            if (keys[key]) {
+              data[id] = keys[key];
+            }
           }
           return data;
         },
         set: (data: any) => {
+          let hasChanged = false;
           for (const type in data) {
-            const typedType = type as keyof typeof data;
-            for (const id in data[typedType]) {
-              const val = data[typedType][id];
-              if (val === null) {
-                delete keys[`${type}-${id}`];
+            for (const id in data[type]) {
+              const val = data[type][id];
+              const key = `${type}-${id}`;
+              if (val) {
+                keys[key] = val;
               } else {
-                keys[`${type}-${id}`] = val;
+                delete keys[key];
               }
+              hasChanged = true;
             }
+          }
+
+          if (hasChanged) {
+            // Important: Auto-save when keys are updated to prevent E2EE sync issues
+            saveCreds();
           }
         }
       }
