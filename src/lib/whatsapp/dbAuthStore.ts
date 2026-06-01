@@ -63,10 +63,11 @@ export async function useSupabaseAuthStore(supabase: SupabaseClient, userId: str
           }
           return data;
         },
-        set: (data) => {
+        set: (data: any) => {
           for (const type in data) {
-            for (const id in data[type]) {
-              const val = data[type][id];
+            const typedType = type as keyof typeof data;
+            for (const id in data[typedType]) {
+              const val = data[typedType][id];
               if (val === null) {
                 delete keys[`${type}-${id}`];
               } else {

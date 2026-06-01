@@ -1,21 +1,23 @@
 // src/workers/senderWorker.ts
 import { Worker, Job } from 'bullmq';
 import { createClient } from '@supabase/supabase-js';
+import { redisConnection } from '@/lib/queue';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-let worker: Worker | null = null;
+declare global {
+  var senderWorker: Worker | undefined;
+}
 
 export function initWorker() {
-  if (worker) return;
+  if (global.senderWorker) return;
 
   console.log('Initializing Bulk Sender Worker...');
 
-  worker = new Worker('bulk-sender', async (job: Job) => {
+  const worker = new Worker('bulk-sender', async (job: Job) => {
     const { userId, contacts, template } = job.data;
     
-    // Extract active socket reference from memory map
     // @ts-ignore
     const userSocket = global.activeSockets?.get(userId);
     
@@ -48,15 +50,17 @@ export function initWorker() {
           error_message: err.message
         });
       }
+
+      // Randomized anti-spam delay: 10-30 seconds
+      const cooldown = Math.floor(Math.random() * (30000 - 10000 + 1)) + 10000;
+      console.log(`[Worker] Sleeping for ${cooldown/1000}s...`);
+      await delay(cooldown);
     }
     
     console.log(`[Worker] Finished job for user ${userId}`);
   }, {
-    connection: { 
-      host: process.env.REDIS_HOST || 'localhost', 
-      port: parseInt(process.env.REDIS_PORT || '6379') 
-    },
-    concurrency: 1 // One job at a time per worker instance to maintain cadence
+    connection: redisConnection,
+    concurrency: 1 
   });
 
   worker.on('failed', (job, err) => {
@@ -67,5 +71,6 @@ export function initWorker() {
     console.log(`[Worker] Job ${job.id} completed successfully`);
   });
 
+  global.senderWorker = worker;
   console.log('Worker initialized and listening for jobs.');
 }
